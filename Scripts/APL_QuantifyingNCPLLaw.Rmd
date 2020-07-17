@@ -46,16 +46,16 @@ prelaw <- aux[aux$as_of_year <= 1998,]
 postlaw <- aux[aux$as_of_year > 1998,]
 ```
 
-```{r VA_models}
-prelaw_VA <- prelaw[prelaw$state_code == 51,]
+```{r ST_models}
+prelaw_ST <- prelaw[prelaw$state_code == 37,]
 
-prelaw_VA_model <- lm(formula=(subprime ~ as_of_year), data=prelaw_VA)
-summary(prelaw_VA_model)
+prelaw_ST_model <- lm(formula=(subprime ~ as_of_year), data=prelaw_ST)
+summary(prelaw_ST_model)
 
-postlaw_VA <- postlaw[postlaw$state_code == 37,]
+postlaw_ST <- postlaw[postlaw$state_code == 37,]
 
-postlaw_VA_model <- lm(formula=(subprime ~ as_of_year), data=postlaw_VA)
-summary(postlaw_VA_model)
+postlaw_ST_model <- lm(formula=(subprime ~ as_of_year), data=postlaw_ST)
+summary(postlaw_ST_model)
 
 lm_eqn <- function(model){
     m <- model;
@@ -66,11 +66,11 @@ lm_eqn <- function(model){
     as.character(as.expression(eq));
 }
 
-ggplot(data=prelaw_VA, aes(x=as_of_year, y=subprime)) + geom_point(color='darkred') + 
-  geom_smooth(method=lm, se=FALSE, color='darkgray') + geom_text(x=1992, y=150000, label=lm_eqn(prelaw_VA_model), parse=TRUE) + theme_minimal() + ggtitle('Virginia Pre-Law')
+ggplot(data=prelaw_ST, aes(x=as_of_year, y=subprime)) + geom_point(color='darkred') + 
+  geom_smooth(method=lm, se=FALSE, color='darkgray') + geom_text(x=1992, y=150000, label=lm_eqn(prelaw_ST_model), parse=TRUE) + theme_minimal() + ggtitle('North Carolina Pre-Law')
 
-ggplot(data=postlaw_VA, aes(x=as_of_year, y=subprime)) + geom_point(color='darkblue') + 
-  geom_smooth(method=lm, se=FALSE, color='darkgray') + geom_text(x=2001, y=200000, label=lm_eqn(postlaw_VA_model), parse=TRUE) + theme_minimal() + ggtitle('Virginia Post-Law')
+ggplot(data=postlaw_ST, aes(x=as_of_year, y=subprime)) + geom_point(color='darkblue') + 
+  geom_smooth(method=lm, se=FALSE, color='darkgray') + geom_text(x=2001, y=200000, label=lm_eqn(postlaw_ST_model), parse=TRUE) + theme_minimal() + ggtitle('North Carolina Post-Law')
 ```
 
 ```{r diff_in_diff}
