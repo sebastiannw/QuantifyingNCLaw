@@ -1,0 +1,87 @@
+---
+title: "Quantifying the Effects of the 1998 Predatory Lending Law in North Carolina"
+author: "Sebastián Soriano Pérez"
+date: "7/15/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r data}
+state_data <- read.csv('../Datasets/state_data.csv')
+state_data_2 <- read.csv('../Datasets/state_data_2.csv')
+
+state_data$prime <- state_data$total - state_data$subprime
+state_data$prime_originated <- state_data$loans_originated - state_data$subprime_originated
+state_data$prime_amount <- state_data$loan_amount - state_data$subprime_amount
+state_data_2$prime <- 1 - state_data_2$subprime
+
+county_data <- read.csv('../Datasets/county_data.csv')
+county_data_2 <- read.csv('../Datasets/county_data_2.csv')
+
+county_data$prime <- county_data$total - county_data$subprime
+county_data$prime_originated <- county_data$loans_originated - county_data$subprime_originated
+county_data$prime_amount <- county_data$loan_amount - county_data$subprime_amount
+county_data_2$prime <- 1 - county_data_2$subprime
+```
+
+## Interrupted Time Series Analysis
+
+You can also embed plots, for example:
+
+```{r time_series}
+aux <- state_data[, c(2, 3, 22, 23, 24, 25, 26, 28, 29)]
+aux$subprime_perc <- state_data_2$subprime
+aux$subprime_originated_perc <- state_data_2$subprime_originated
+
+prelaw <- aux[aux$as_of_year <= 1998,]
+postlaw <- aux[aux$as_of_year > 1998,]
+```
+
+```{r ST_models}
+prelaw_ST <- prelaw[prelaw$state_code == 37,]
+
+prelaw_ST_model <- lm(formula=(subprime ~ as_of_year), data=prelaw_ST)
+summary(prelaw_ST_model)
+
+postlaw_ST <- postlaw[postlaw$state_code == 37,]
+
+postlaw_ST_model <- lm(formula=(subprime ~ as_of_year), data=postlaw_ST)
+summary(postlaw_ST_model)
+
+lm_eqn <- function(model){
+    m <- model;
+    eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
+         list(a = format(unname(coef(m)[1]), digits=2),
+              b = format(unname(coef(m)[2]), digits=2),
+             r2 = format(summary(m)$r.squared, digits=3)))
+    as.character(as.expression(eq));
+}
+
+ggplot(data=prelaw_ST, aes(x=as_of_year, y=subprime)) + geom_point(color='darkred') + 
+  geom_smooth(method=lm, se=FALSE, color='darkgray') + geom_text(x=1992, y=150000, label=lm_eqn(prelaw_ST_model), parse=TRUE) + theme_minimal() + ggtitle('North Carolina Pre-Law')
+
+ggplot(data=postlaw_ST, aes(x=as_of_year, y=subprime)) + geom_point(color='darkblue') + 
+  geom_smooth(method=lm, se=FALSE, color='darkgray') + geom_text(x=2001, y=200000, label=lm_eqn(postlaw_ST_model), parse=TRUE) + theme_minimal() + ggtitle('North Carolina Post-Law')
+```
+
+```{r diff_in_diff}
+state_model <- lm(formula=(subprime ~ as.factor(as_of_year) + as.factor(state_code) + did), data=state_data)
+summary(state_model)
+
+county_model <- lm(formula=(subprime ~ as.factor(as_of_year) + as.factor(state_code) + did), data=county_data)
+summary(county_model)
+```
+
+```{r diff_in_diff_2}
+state_model <- lm(formula=(subprime_amount_originated ~ as.factor(as_of_year) + as.factor(state_code) + did), data=state_data)
+summary(state_model)
+```
