@@ -72,13 +72,13 @@ while invalid_input:
 # Opens source file and reads line by line
 #with open('../RawData/' + year + 'short.txt', 'r') as file:
 
-input_file = 'HMS.U' + year + '.LARS'
+input_file = '../Data/HMDA/HMS.U' + year + '.LARS'
 if int(year) < 1990:
-    input_file = 'HMD_FACDSB' + year[2:] + '.txt'
+    input_file = '../Data/HMDA/HMD_FACDSB' + year[2:] + '.txt'
 
 with open(input_file, 'r', encoding='latin-1') as file:
     # Creates output CSV file
-    out = open('hmda' + year + '.csv', 'w')
+    out = open('../Data/HMDA/hmda' + year + '.csv', 'w')
 
     # Adds header to output file
     header = ''
