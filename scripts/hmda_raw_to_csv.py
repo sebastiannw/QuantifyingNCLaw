@@ -66,19 +66,19 @@ while invalid_input:
         print('Enter a valid 4-digit year from 1981 to 2009.')
 
 # Creates a panda dataframe from raw text file, filling empty cells with 'NA'
-#data = pd.read_fwf('../RawData/' + year + 'short.txt', widths=widths[year], header=None, names=names[year])
-#data = pd.read_fwf('../RawData/HMS.U' + year + '.LARS', widths=widths[year], header=None, names=names[year])
+#data = pd.read_fwf('../data/hmda/' + year + 'short.txt', widths=widths[year], header=None, names=names[year])
+#data = pd.read_fwf('../data/hmda/HMS.U' + year + '.LARS', widths=widths[year], header=None, names=names[year])
 
 # Opens source file and reads line by line
-#with open('../RawData/' + year + 'short.txt', 'r') as file:
+#with open('../data/hmda/' + year + 'short.txt', 'r') as file:
 
-input_file = '../Data/HMDA/HMS.U' + year + '.LARS'
+input_file = '../data/hmda/HMS.U' + year + '.LARS'
 if int(year) < 1990:
-    input_file = '../Data/HMDA/HMD_FACDSB' + year[2:] + '.txt'
+    input_file = '../data/hmda/HMD_FACDSB' + year[2:] + '.txt'
 
 with open(input_file, 'r', encoding='latin-1') as file:
     # Creates output CSV file
-    out = open('../Data/HMDA/hmda' + year + '.csv', 'w')
+    out = open('../data/hmda/hmda' + year + '.csv', 'w')
 
     # Adds header to output file
     header = ''

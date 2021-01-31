@@ -28,18 +28,18 @@ while invalid_input:
             print(x)
 
 # Creates a panda dataframe from raw text file, filling empty cells with 'NA'
-#data = pd.read_fwf('../RawData/' + file_type + 'short.txt', ends=ends[file_type], header=None, names=names[file_type])
-#data = pd.read_fwf('../RawData/HMS.U' + file_type + '.LARS', ends=ends[file_type], header=None, names=names[file_type])
+#data = pd.read_fwf('../data/hmda/' + file_type + 'short.txt', ends=ends[file_type], header=None, names=names[file_type])
+#data = pd.read_fwf('../data/hmda/HMS.U' + file_type + '.LARS', ends=ends[file_type], header=None, names=names[file_type])
 
 # Opens source file and reads line by line
-#with open('../RawData/' + file_type + 'short.txt', 'r') as file:
+#with open('../data/hmda/' + file_type + 'short.txt', 'r') as file:
 
-input_files = {'population': '../Data/Population/us.1969_2018.19ages.adjusted.txt'}
+input_files = {'population': '../data/population/us.1969_2018.19ages.adjusted.txt'}
 input_file = input_files[file_type]
 
 with open(input_file, 'r', encoding='latin-1') as file:
     # Creates output CSV file
-    out = open('../Data/Population/' + file_type + '.csv', 'w')
+    out = open('../data/population/' + file_type + '.csv', 'w')
 
     # Adds header to output file
     header = ''

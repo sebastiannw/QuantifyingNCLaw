@@ -23,7 +23,7 @@ while invalid_input:
         print('Enter a valid 4-digit year from 1981 to 2009.')
 
 # Load HMDA data
-hmda = pd.read_csv('../Data/HMDA/hmda' + year + '.csv',
+hmda = pd.read_csv('../data/hmda/hmda' + year + '.csv',
                    dtype={'respondent_id': 'str', 'agency_code': 'str', 'state_code': 'str', 'county_code': 'str',
                           'applicant_race': 'str', 'co_applicant_race': 'str',
                           'applicant_race_1': 'str', 'co_applicant_race_1': 'str',
@@ -31,7 +31,7 @@ hmda = pd.read_csv('../Data/HMDA/hmda' + year + '.csv',
 
 
 # Load HUD subprime lenders data
-subprimes = pd.read_csv('../Data/HUD/subprime' + year + '.csv', dtype={'IDD': 'str', 'MH': 'str'})
+subprimes = pd.read_csv('../data/hud/subprime' + year + '.csv', dtype={'IDD': 'str', 'MH': 'str'})
 subprimes.columns = ['idd', 'code', 'id', 'mh', 'name']
 
 
@@ -169,7 +169,7 @@ if int(year) >= 1999:
     state_data.loc[state_data.state_code == '37', 'did'] = 1
 
 # Appending to CSV
-state_data.to_csv('../Data/Aggregated/state_data.csv', mode='a', header=(not os.path.exists('state_data.csv')))
+state_data.to_csv('../data/aggregated/state_data.csv', mode='a', header=(not os.path.exists('state_data.csv')))
 
 # Creating dataset with percentages
 state_data_2 = state_data.copy()
@@ -181,7 +181,7 @@ state_data_2.iloc[:, 22] = state_data_2.iloc[:, 22] / state_data.subprime
 state_data_2.iloc[:, 23] = state_data_2.iloc[:, 23] / state_data.subprime_originated
 
 # Appending to CSV
-state_data_2.to_csv('../Data/Aggregated/state_data_2.csv', mode='a', header=(not os.path.exists('state_data_2.csv')))
+state_data_2.to_csv('../data/aggregated/state_data_2.csv', mode='a', header=(not os.path.exists('state_data_2.csv')))
 
 
 # Grouping data by state, county, and year
@@ -202,7 +202,7 @@ if int(year) >= 1999:
     county_data.loc[county_data.state_code == '37', 'did'] = 1
 
 # Appending to CSV
-county_data.to_csv('../Data/Aggregated/county_data.csv', mode='a', header=(not os.path.exists('county_data.csv')))
+county_data.to_csv('../data/aggregated/county_data.csv', mode='a', header=(not os.path.exists('county_data.csv')))
 
 # Creating dataset with percentages
 county_data_2 = county_data.copy()
@@ -214,4 +214,4 @@ county_data_2.iloc[:, 23] = county_data_2.iloc[:, 23] / county_data.subprime
 county_data_2.iloc[:, 24] = county_data_2.iloc[:, 24] / county_data.subprime_originated
 
 # Appending to CSV
-county_data_2.to_csv('../Data/Aggregated/county_data_2.csv', mode='a', header=(not os.path.exists('county_data_2.csv')))
+county_data_2.to_csv('../data/aggregated/county_data_2.csv', mode='a', header=(not os.path.exists('county_data_2.csv')))
