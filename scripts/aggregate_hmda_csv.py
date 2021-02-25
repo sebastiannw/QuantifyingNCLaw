@@ -48,13 +48,13 @@ if int(year) < 2004:
     data.loc[(data.applicant_race != '3') & (data.co_applicant_race != '3'), 'race_flag'] = 2 # 2: other
     data.loc[(data.applicant_race == '5') & (data.co_applicant_race.isin(['5', '7', '8'])), 'race_flag'] = 3 # 3: white
     data.loc[(~data.applicant_race.isin(['1', '2', '3', '4', '5', '6'])) |
-                 (~data.co_applicant_race.isin(['1', '2', '3', '4', '5', '6', '8'])), 'race_flag'] = 3 # 4: misreported
+                 (~data.co_applicant_race.isin(['1', '2', '3', '4', '5', '6', '8'])), 'race_flag'] = 4 # 4: misreported
 
 else:
     data.loc[(data.applicant_race_1 != '3') & (data.co_applicant_race_1 != '3'), 'race_flag'] = 2 # 2: other
     data.loc[(data.applicant_race_1 == '5') & (data.co_applicant_race_1.isin(['5', '7', '8'])), 'race_flag'] = 3 # 3: white
     data.loc[(~data.applicant_race_1.isin(['1', '2', '3', '4', '5', '6'])) |
-                 (~data.co_applicant_race_1.isin(['1', '2', '3', '4', '5', '6', '8'])), 'race_flag'] = 3 # 4: misreported
+                 (~data.co_applicant_race_1.isin(['1', '2', '3', '4', '5', '6', '8'])), 'race_flag'] = 4 # 4: misreported
 
 
 # Select relevant columns
@@ -163,13 +163,13 @@ state_data = (data.groupby(['as_of_year', 'state_code'])
               .reset_index())
 
 # Adding diff in diff dummy variable
-state_data['did'] = 0
+#state_data['did'] = 0
 
-if int(year) >= 1999:
-    state_data.loc[state_data.state_code == '37', 'did'] = 1
+#if int(year) >= 1999:
+#    state_data.loc[state_data.state_code == '37', 'did'] = 1
 
-# Appending to CSV
-state_data.to_csv('../data/aggregated/state_data.csv', mode='a', header=(not os.path.exists('state_data.csv')))
+# Appending to CSV (absolute data)
+state_data.to_csv('../data/aggregated/state_data.csv', mode='a', header=(not os.path.exists('../data/aggregated/state_data.csv')))
 
 # Creating dataset with percentages
 state_data_2 = state_data.copy()
@@ -180,8 +180,8 @@ for i in range(2, 22):
 state_data_2.iloc[:, 22] = state_data_2.iloc[:, 22] / state_data.subprime
 state_data_2.iloc[:, 23] = state_data_2.iloc[:, 23] / state_data.subprime_originated
 
-# Appending to CSV
-state_data_2.to_csv('../data/aggregated/state_data_2.csv', mode='a', header=(not os.path.exists('state_data_2.csv')))
+# Appending to CSV (relative data)
+state_data_2.to_csv('../data/aggregated/state_relative.csv', mode='a', header=(not os.path.exists('../data/aggregated/state_relative.csv')))
 
 
 # Grouping data by state, county, and year
@@ -196,13 +196,13 @@ county_data = (data.groupby(['as_of_year', 'state_code', 'county_code'])
               .reset_index())
 
 # Adding diff in diff dummy variable
-county_data['did'] = 0
+#county_data['did'] = 0
 
-if int(year) >= 1999:
-    county_data.loc[county_data.state_code == '37', 'did'] = 1
+#if int(year) >= 1999:
+#    county_data.loc[county_data.state_code == '37', 'did'] = 1
 
-# Appending to CSV
-county_data.to_csv('../data/aggregated/county_data.csv', mode='a', header=(not os.path.exists('county_data.csv')))
+# Appending to CSV (absolute data)
+county_data.to_csv('../data/aggregated/county_data.csv', mode='a', header=(not os.path.exists('../data/aggregated/county_data.csv')))
 
 # Creating dataset with percentages
 county_data_2 = county_data.copy()
@@ -213,5 +213,5 @@ for i in range(3, 23):
 county_data_2.iloc[:, 23] = county_data_2.iloc[:, 23] / county_data.subprime
 county_data_2.iloc[:, 24] = county_data_2.iloc[:, 24] / county_data.subprime_originated
 
-# Appending to CSV
-county_data_2.to_csv('../data/aggregated/county_data_2.csv', mode='a', header=(not os.path.exists('county_data_2.csv')))
+# Appending to CSV (relative data)
+county_data_2.to_csv('../data/aggregated/county_relative.csv', mode='a', header=(not os.path.exists('../data/aggregated/county_relative.csv')))
