@@ -90,138 +90,11 @@ The final dataset uses this sources along with the NHI population data to identi
 
 
 
-```{r state_data, include = FALSE}
-state_data <- read.csv('../Data/HMDASubprime/state_data.csv')
-state_data_2 <- read.csv('../Data/HMDASubprime/state_data_2.csv')
-
-state_data$prime <- state_data$total - state_data$subprime
-state_data$prime_originated <- state_data$loans_originated - state_data$subprime_originated
-state_data$prime_amount <- state_data$loan_amount - state_data$subprime_amount
-state_data$state <- 'AL'
-state_data[state_data$state_code == 13,]$state <- 'GA'
-state_data[state_data$state_code == 27,]$state <- 'MN'
-state_data[state_data$state_code == 37,]$state <- 'NC'
-state_data[state_data$state_code == 45,]$state <- 'SC'
-state_data[state_data$state_code == 51,]$state <- 'VA'
-state_data$state <- as.factor(state_data$state)
-state_data_2$prime <- 1 - state_data_2$subprime
-
-
-population_data <- read.csv('../Data/Population/state_pop2.csv')
-population_data <- population_data[population_data$year >= 1990 & population_data$year <= 2006,]
-population_data <- population_data[population_data$state %in% c('AL', 'GA', 'MN', 'NC', 'SC', 'VA'),]
-population_data <- population_data %>% group_by(year, state) %>% summarise(total_population = mean(total_population))
-
-state_data <- inner_join(state_data, population_data, by=c('as_of_year' = 'year', 'state' = 'state'))
-
-hpi_AL <- read.csv('../Data/HousePriceIndex/ALSTHPI.csv')
-hpi_GA <- read.csv('../Data/HousePriceIndex/GASTHPI.csv')
-hpi_MN <- read.csv('../Data/HousePriceIndex/MNSTHPI.csv')
-hpi_NC <- read.csv('../Data/HousePriceIndex/NCSTHPI.csv')
-hpi_SC <- read.csv('../Data/HousePriceIndex/SCSTHPI.csv')
-hpi_VA <- read.csv('../Data/HousePriceIndex/VASTHPI.csv')
-
-names(hpi_AL) <- c('date', 'sthpi')
-names(hpi_GA) <- c('date', 'sthpi')
-names(hpi_MN) <- c('date', 'sthpi')
-names(hpi_NC) <- c('date', 'sthpi')
-names(hpi_SC) <- c('date', 'sthpi')
-names(hpi_VA) <- c('date', 'sthpi')
-
-hpi_AL$state <- 'AL'
-hpi_GA$state <- 'GA'
-hpi_MN$state <- 'MN'
-hpi_NC$state <- 'NC'
-hpi_SC$state <- 'SC'
-hpi_VA$state <- 'VA'
-
-hpi_AL$year <- year(hpi_AL$date)
-hpi_GA$year <- year(hpi_GA$date)
-hpi_MN$year <- year(hpi_MN$date)
-hpi_NC$year <- year(hpi_NC$date)
-hpi_SC$year <- year(hpi_SC$date)
-hpi_VA$year <- year(hpi_VA$date)
-
-hpi <- union(hpi_AL, hpi_GA)
-hpi <- union(hpi, hpi_MN)
-hpi <- union(hpi, hpi_NC)
-hpi <- union(hpi, hpi_SC)
-hpi <- union(hpi, hpi_VA)
-
-hpi <- hpi %>% group_by(year, state) %>% summarise(sthpi = mean(sthpi))
-hpi <- hpi[hpi$year >= 1990 & hpi$year <= 2006,]
-
-state_data <- inner_join(state_data, hpi, by=c('as_of_year' = 'year', 'state' = 'state'))
-
-income_AL <- read.csv('../Data/MedianHouseholdIncome/MEHOINUSALA646N.csv')
-income_GA <- read.csv('../Data/MedianHouseholdIncome/MEHOINUSGAA646N.csv')
-income_MN <- read.csv('../Data/MedianHouseholdIncome/MEHOINUSMNA646N.csv')
-income_NC <- read.csv('../Data/MedianHouseholdIncome/MEHOINUSNCA646N.csv')
-income_SC <- read.csv('../Data/MedianHouseholdIncome/MEHOINUSSCA646N.csv')
-income_VA <- read.csv('../Data/MedianHouseholdIncome/MEHOINUSVAA646N.csv')
-
-names(income_AL) <- c('date', 'mh_income')
-names(income_GA) <- c('date', 'mh_income')
-names(income_MN) <- c('date', 'mh_income')
-names(income_NC) <- c('date', 'mh_income')
-names(income_SC) <- c('date', 'mh_income')
-names(income_VA) <- c('date', 'mh_income')
-
-income_AL$state <- 'AL'
-income_GA$state <- 'GA'
-income_MN$state <- 'MN'
-income_NC$state <- 'NC'
-income_SC$state <- 'SC'
-income_VA$state <- 'VA'
-
-income_AL$year <- year(income_AL$date)
-income_GA$year <- year(income_GA$date)
-income_MN$year <- year(income_MN$date)
-income_NC$year <- year(income_NC$date)
-income_SC$year <- year(income_SC$date)
-income_VA$year <- year(income_VA$date)
-
-income <- union(income_AL, income_GA)
-income <- union(income, income_MN)
-income <- union(income, income_NC)
-income <- union(income, income_SC)
-income <- union(income, income_VA)
-
-income <- income %>% group_by(year, state) %>% summarise(mh_income = mean(mh_income))
-income <- income[income$year >= 1990 & income$year <= 2006,]
-
-state_data <- inner_join(state_data, income, by=c('as_of_year' = 'year', 'state' = 'state'))
-
-```
-
-```{r county_data}
-county_data <- read.csv('../Data/HMDASubprime/county_data.csv')
-county_data_2 <- read.csv('../Data/HMDASubprime/county_data_2.csv')
-
-county_data$prime <- county_data$total - county_data$subprime
-county_data$prime_originated <- county_data$loans_originated - county_data$subprime_originated
-county_data$prime_amount <- county_data$loan_amount - county_data$subprime_amount
-county_data$state <- 'AL'
-county_data[county_data$state_code == 13,]$state <- 'GA'
-county_data[county_data$state_code == 27,]$state <- 'MN'
-county_data[county_data$state_code == 37,]$state <- 'NC'
-county_data[county_data$state_code == 45,]$state <- 'SC'
-county_data[county_data$state_code == 51,]$state <- 'VA'
-county_data$state <- as.factor(county_data$state)
-county_data_2$prime <- 1 - county_data_2$subprime
-
-county_population_data <- read.csv('../Data/Population/county_pop2.csv')
-county_population_data <- county_population_data[county_population_data$year >= 1990 & county_population_data$year <= 2006,]
-county_population_data <- county_population_data[county_population_data$state %in% c('AL', 'GA', 'MN', 'NC', 'SC', 'VA'),]
-county_population_data <- county_population_data %>% group_by(year, state, state_fips_x, county_fips) %>% summarise(total_population = mean(total_population))
-
-county_data <- inner_join(county_data, county_population_data, by=c('as_of_year' = 'year', 'state' = 'state',
-                                                                    'state_code' = 'state_fips_x', 
-                                                                    'county_code' = 'county_fips'))
-
-county_data <- inner_join(county_data, hpi, by=c('as_of_year' = 'year', 'state' = 'state'))
-
-county_data <- inner_join(county_data, income, by=c('as_of_year' = 'year', 'state' = 'state'))
+```{r load_data, include=FALSE}
+state_data <- read.csv('../data/final/state_data.csv')
+state_relative <- read.csv('../data/final/state_relative.csv')
+county_data <- read.csv('../data/final/county_data.csv')
+county_relative <- read.csv('../data/final/county_relative.csv')
 ```
 
 
@@ -229,37 +102,37 @@ county_data <- inner_join(county_data, income, by=c('as_of_year' = 'year', 'stat
 
 ```{r aux_data}
 aux <- state_data[, c(2, 3, 22, 23, 24, 25, 26, 28, 29, 31, 32, 33, 34)]
-aux$subprime_perc <- state_data_2$subprime
-aux$subprime_originated_perc <- state_data_2$subprime_originated
+aux$subprime_perc <- state_relative$subprime
+aux$subprime_originated_perc <- state_relative$subprime_originated
 ```
 
 ```{r subprime_vs_population, out.width = '33%', out.height = '33%', echo = FALSE}
-ggplot(aux[aux$state == 'NC',], aes(x=total_population, y=subprime)) +
+ggplot(aux[aux$state == 'NC',], aes(x=population, y=subprime)) +
   geom_point(alpha=0.5,colour="blue4") +
   geom_smooth(method="lm",col="red3") +
   labs(title="Subprime applications vs Total population in NC")
 
-ggplot(aux[aux$state == 'AL',], aes(x=total_population, y=subprime)) +
+ggplot(aux[aux$state == 'AL',], aes(x=population, y=subprime)) +
   geom_point(alpha=0.5,colour="blue4") +
   geom_smooth(method="lm",col="red3") +
   labs(title="Subprime applications vs Total population in AL")
 
-ggplot(aux[aux$state == 'GA',], aes(x=total_population, y=subprime)) +
+ggplot(aux[aux$state == 'GA',], aes(x=population, y=subprime)) +
   geom_point(alpha=0.5,colour="blue4") +
   geom_smooth(method="lm",col="red3") +
   labs(title="Subprime applications vs Total population in GA")
 
-ggplot(aux[aux$state == 'MN',], aes(x=total_population, y=subprime)) +
+ggplot(aux[aux$state == 'MN',], aes(x=population, y=subprime)) +
   geom_point(alpha=0.5,colour="blue4") +
   geom_smooth(method="lm",col="red3") +
   labs(title="Subprime applications vs Total population in MN")
 
-ggplot(aux[aux$state == 'SC',], aes(x=total_population, y=subprime)) +
+ggplot(aux[aux$state == 'SC',], aes(x=population, y=subprime)) +
   geom_point(alpha=0.5,colour="blue4") +
   geom_smooth(method="lm",col="red3") +
   labs(title="Subprime applications vs Total population in SC")
 
-ggplot(aux[aux$state == 'VA',], aes(x=total_population, y=subprime)) +
+ggplot(aux[aux$state == 'VA',], aes(x=population, y=subprime)) +
   geom_point(alpha=0.5,colour="blue4") +
   geom_smooth(method="lm",col="red3") +
   labs(title="Subprime applications vs Total population in VA")
@@ -336,33 +209,33 @@ ggplot(aux[aux$state == 'VA',], aes(x=mh_income, y=subprime)) +
 #North Carolina
 st_data <- aux[aux$state == 'NC',]
 
-prelaw <- st_data[st_data$as_of_year <= 1998,]
-transition <- st_data[(st_data$as_of_year > 1998) & (st_data$as_of_year <= 2000),]
-postlaw <- st_data[st_data$as_of_year > 2000,]
+prelaw <- st_data[st_data$year <= 1998,]
+transition <- st_data[(st_data$year > 1998) & (st_data$year <= 2000),]
+postlaw <- st_data[st_data$year > 2000,]
 
-prelaw_model <- lm(formula=(subprime ~ as_of_year), data=prelaw)
+prelaw_model <- lm(formula=(subprime ~ year), data=prelaw)
 summary(prelaw_model)
 
-postlaw_model <- lm(formula=(subprime ~ as_of_year), data=postlaw)
+postlaw_model <- lm(formula=(subprime ~ year), data=postlaw)
 summary(postlaw_model)
 
-predicted <- data.frame(st_data$as_of_year, predict(prelaw_model, newdata=st_data))
-names(predicted) <- c('as_of_year', 'subprime')
+predicted <- data.frame(st_data$year, predict(prelaw_model, newdata=st_data))
+names(predicted) <- c('year', 'subprime')
 
-prelaw_model2 <- lm(formula=(subprime ~ as_of_year + total_population + sthpi + mh_income), data=prelaw)
+prelaw_model2 <- lm(formula=(subprime ~ year + population + sthpi + mh_income), data=prelaw)
 summary(prelaw_model2)
 
-predicted2 <- data.frame(st_data$as_of_year, predict(prelaw_model2, newdata=st_data))
-names(predicted2) <- c('as_of_year', 'subprime')
+predicted2 <- data.frame(st_data$year, predict(prelaw_model2, newdata=st_data))
+names(predicted2) <- c('year', 'subprime')
 
-predicted2_pre <- predicted2[predicted2$as_of_year <= 1998,]
-predicted2_pos <- predicted2[predicted2$as_of_year >= 1998,]
+predicted2_pre <- predicted2[predicted2$year <= 1998,]
+predicted2_pos <- predicted2[predicted2$year >= 1998,]
 
-differences <- postlaw[, c('as_of_year', 'subprime')]
-differences$subprime_predicted <- predicted2[predicted2$as_of_year > 2000,]$subprime
+differences <- postlaw[, c('year', 'subprime')]
+differences$subprime_predicted <- predicted2[predicted2$year > 2000,]$subprime
 differences$difference <- differences$subprime - differences$subprime_predicted
 
-ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
+ggplot(NULL, aes(x=year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
   geom_point(data=transition, color='gold') +
   geom_point(data=postlaw, color='darkblue') + 
   geom_smooth(data=prelaw, method=lm, se=FALSE, color='darkgray', fullrange=TRUE, linetype='dashed') + 
@@ -370,7 +243,7 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
   geom_line(data=predicted2_pos, color='blue', linetype='dashed') + 
   #geom_text(data=prelaw, x=1995, y=150000, label=lm_eqn(prelaw_model), parse=TRUE) + 
   geom_segment(data=differences, 
-               aes(x=as_of_year, xend=as_of_year, y=subprime, yend=subprime_predicted)) +
+               aes(x=year, xend=year, y=subprime, yend=subprime_predicted)) +
   theme_minimal() + ggtitle('North Carolina')
 ```
 
@@ -379,33 +252,33 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
 #Alabama
 st_data <- aux[aux$state == 'AL',]
 
-prelaw <- st_data[st_data$as_of_year <= 2006,]
-#transition <- st_data[(st_data$as_of_year > 1998) & (st_data$as_of_year <= 2000),]
-#postlaw <- st_data[st_data$as_of_year > 2000,]
+prelaw <- st_data[st_data$year <= 2006,]
+#transition <- st_data[(st_data$year > 1998) & (st_data$year <= 2000),]
+#postlaw <- st_data[st_data$year > 2000,]
 
-prelaw_model <- lm(formula=(subprime ~ as_of_year), data=prelaw)
+prelaw_model <- lm(formula=(subprime ~ year), data=prelaw)
 summary(prelaw_model)
 
-postlaw_model <- lm(formula=(subprime ~ as_of_year), data=postlaw)
+postlaw_model <- lm(formula=(subprime ~ year), data=postlaw)
 summary(postlaw_model)
 
-predicted <- data.frame(st_data$as_of_year, predict(prelaw_model, newdata=st_data))
-names(predicted) <- c('as_of_year', 'subprime')
+predicted <- data.frame(st_data$year, predict(prelaw_model, newdata=st_data))
+names(predicted) <- c('year', 'subprime')
 
-prelaw_model2 <- lm(formula=(subprime ~ as_of_year + total_population + sthpi + mh_income), data=prelaw)
+prelaw_model2 <- lm(formula=(subprime ~ year + population + sthpi + mh_income), data=prelaw)
 summary(prelaw_model2)
 
-predicted2 <- data.frame(st_data$as_of_year, predict(prelaw_model2, newdata=st_data))
-names(predicted2) <- c('as_of_year', 'subprime')
+predicted2 <- data.frame(st_data$year, predict(prelaw_model2, newdata=st_data))
+names(predicted2) <- c('year', 'subprime')
 
-predicted2_pre <- predicted2[predicted2$as_of_year <= 2006,]
-predicted2_pos <- predicted2[predicted2$as_of_year >= 2006,]
+predicted2_pre <- predicted2[predicted2$year <= 2006,]
+predicted2_pos <- predicted2[predicted2$year >= 2006,]
 
-differences <- postlaw[, c('as_of_year', 'subprime')]
-differences$subprime_predicted <- predicted2[predicted2$as_of_year >= 2006,]$subprime
+differences <- postlaw[, c('year', 'subprime')]
+differences$subprime_predicted <- predicted2[predicted2$year >= 2006,]$subprime
 differences$difference <- differences$subprime - differences$subprime_predicted
 
-ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
+ggplot(NULL, aes(x=year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
   #geom_point(data=transition, color='gold') +
   #geom_point(data=postlaw, color='darkblue') + 
   geom_smooth(data=prelaw, method=lm, se=FALSE, color='darkgray', fullrange=TRUE, linetype='dashed') + 
@@ -413,7 +286,7 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
   #geom_line(data=predicted2_pos, color='blue', linetype='dashed') + 
   #geom_text(data=prelaw, x=1995, y=150000, label=lm_eqn(prelaw_model), parse=TRUE) + 
   #geom_segment(data=differences, 
-               #aes(x=as_of_year, xend=as_of_year, y=subprime, yend=subprime_predicted)) +
+               #aes(x=year, xend=year, y=subprime, yend=subprime_predicted)) +
   theme_minimal() + ggtitle('Alabama')
 ```
 
@@ -422,33 +295,33 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
 #Georgia
 st_data <- aux[aux$state == 'GA',]
 
-prelaw <- st_data[st_data$as_of_year <= 2001,]
-transition <- st_data[(st_data$as_of_year > 2001) & (st_data$as_of_year <= 2002),]
-postlaw <- st_data[st_data$as_of_year > 2002,]
+prelaw <- st_data[st_data$year <= 2001,]
+transition <- st_data[(st_data$year > 2001) & (st_data$year <= 2002),]
+postlaw <- st_data[st_data$year > 2002,]
 
-prelaw_model <- lm(formula=(subprime ~ as_of_year), data=prelaw)
+prelaw_model <- lm(formula=(subprime ~ year), data=prelaw)
 summary(prelaw_model)
 
-postlaw_model <- lm(formula=(subprime ~ as_of_year), data=postlaw)
+postlaw_model <- lm(formula=(subprime ~ year), data=postlaw)
 summary(postlaw_model)
 
-predicted <- data.frame(st_data$as_of_year, predict(prelaw_model, newdata=st_data))
-names(predicted) <- c('as_of_year', 'subprime')
+predicted <- data.frame(st_data$year, predict(prelaw_model, newdata=st_data))
+names(predicted) <- c('year', 'subprime')
 
-prelaw_model2 <- lm(formula=(subprime ~ as_of_year + total_population + sthpi + mh_income), data=prelaw)
+prelaw_model2 <- lm(formula=(subprime ~ year + population + sthpi + mh_income), data=prelaw)
 summary(prelaw_model2)
 
-predicted2 <- data.frame(st_data$as_of_year, predict(prelaw_model2, newdata=st_data))
-names(predicted2) <- c('as_of_year', 'subprime')
+predicted2 <- data.frame(st_data$year, predict(prelaw_model2, newdata=st_data))
+names(predicted2) <- c('year', 'subprime')
 
-predicted2_pre <- predicted2[predicted2$as_of_year <= 2001,]
-predicted2_pos <- predicted2[predicted2$as_of_year >= 2001,]
+predicted2_pre <- predicted2[predicted2$year <= 2001,]
+predicted2_pos <- predicted2[predicted2$year >= 2001,]
 
-differences <- postlaw[, c('as_of_year', 'subprime')]
-differences$subprime_predicted <- predicted2[predicted2$as_of_year > 2002,]$subprime
+differences <- postlaw[, c('year', 'subprime')]
+differences$subprime_predicted <- predicted2[predicted2$year > 2002,]$subprime
 differences$difference <- differences$subprime - differences$subprime_predicted
 
-ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
+ggplot(NULL, aes(x=year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
   geom_point(data=transition, color='gold') +
   geom_point(data=postlaw, color='darkblue') + 
   geom_smooth(data=prelaw, method=lm, se=FALSE, color='darkgray', fullrange=TRUE, linetype='dashed') + 
@@ -456,7 +329,7 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
   geom_line(data=predicted2_pos, color='blue', linetype='dashed') + 
   #geom_text(data=prelaw, x=1995, y=150000, label=lm_eqn(prelaw_model), parse=TRUE) + 
   geom_segment(data=differences, 
-               aes(x=as_of_year, xend=as_of_year, y=subprime, yend=subprime_predicted)) +
+               aes(x=year, xend=year, y=subprime, yend=subprime_predicted)) +
   theme_minimal() + ggtitle('Georgia')
 ```
 
@@ -464,33 +337,33 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
 #Minnesota
 st_data <- aux[aux$state == 'MN',]
 
-prelaw <- st_data[st_data$as_of_year <= 2003,]
-transition <- st_data[(st_data$as_of_year > 2003) & (st_data$as_of_year <= 2004),]
-postlaw <- st_data[st_data$as_of_year > 2004,]
+prelaw <- st_data[st_data$year <= 2003,]
+transition <- st_data[(st_data$year > 2003) & (st_data$year <= 2004),]
+postlaw <- st_data[st_data$year > 2004,]
 
-prelaw_model <- lm(formula=(subprime ~ as_of_year), data=prelaw)
+prelaw_model <- lm(formula=(subprime ~ year), data=prelaw)
 summary(prelaw_model)
 
-postlaw_model <- lm(formula=(subprime ~ as_of_year), data=postlaw)
+postlaw_model <- lm(formula=(subprime ~ year), data=postlaw)
 summary(postlaw_model)
 
-predicted <- data.frame(st_data$as_of_year, predict(prelaw_model, newdata=st_data))
-names(predicted) <- c('as_of_year', 'subprime')
+predicted <- data.frame(st_data$year, predict(prelaw_model, newdata=st_data))
+names(predicted) <- c('year', 'subprime')
 
-prelaw_model2 <- lm(formula=(subprime ~ as_of_year + total_population + sthpi + mh_income), data=prelaw)
+prelaw_model2 <- lm(formula=(subprime ~ year + population + sthpi + mh_income), data=prelaw)
 summary(prelaw_model2)
 
-predicted2 <- data.frame(st_data$as_of_year, predict(prelaw_model2, newdata=st_data))
-names(predicted2) <- c('as_of_year', 'subprime')
+predicted2 <- data.frame(st_data$year, predict(prelaw_model2, newdata=st_data))
+names(predicted2) <- c('year', 'subprime')
 
-predicted2_pre <- predicted2[predicted2$as_of_year <= 2003,]
-predicted2_pos <- predicted2[predicted2$as_of_year >= 2003,]
+predicted2_pre <- predicted2[predicted2$year <= 2003,]
+predicted2_pos <- predicted2[predicted2$year >= 2003,]
 
-differences <- postlaw[, c('as_of_year', 'subprime')]
-differences$subprime_predicted <- predicted2[predicted2$as_of_year > 2004,]$subprime
+differences <- postlaw[, c('year', 'subprime')]
+differences$subprime_predicted <- predicted2[predicted2$year > 2004,]$subprime
 differences$difference <- differences$subprime - differences$subprime_predicted
 
-ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
+ggplot(NULL, aes(x=year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
   geom_point(data=transition, color='gold') +
   geom_point(data=postlaw, color='darkblue') + 
   geom_smooth(data=prelaw, method=lm, se=FALSE, color='darkgray', fullrange=TRUE, linetype='dashed') + 
@@ -498,7 +371,7 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
   geom_line(data=predicted2_pos, color='blue', linetype='dashed') + 
   #geom_text(data=prelaw, x=1995, y=150000, label=lm_eqn(prelaw_model), parse=TRUE) + 
   geom_segment(data=differences, 
-               aes(x=as_of_year, xend=as_of_year, y=subprime, yend=subprime_predicted)) +
+               aes(x=year, xend=year, y=subprime, yend=subprime_predicted)) +
   theme_minimal() + ggtitle('Minnesota')
 ```
 
@@ -507,33 +380,33 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
 #South Carolina
 st_data <- aux[aux$state == 'SC',]
 
-prelaw <- st_data[st_data$as_of_year <= 1999,]
-transition <- st_data[(st_data$as_of_year > 1999) & (st_data$as_of_year <= 2000),]
-postlaw <- st_data[st_data$as_of_year > 2000,]
+prelaw <- st_data[st_data$year <= 1999,]
+transition <- st_data[(st_data$year > 1999) & (st_data$year <= 2000),]
+postlaw <- st_data[st_data$year > 2000,]
 
-prelaw_model <- lm(formula=(subprime ~ as_of_year), data=prelaw)
+prelaw_model <- lm(formula=(subprime ~ year), data=prelaw)
 summary(prelaw_model)
 
-postlaw_model <- lm(formula=(subprime ~ as_of_year), data=postlaw)
+postlaw_model <- lm(formula=(subprime ~ year), data=postlaw)
 summary(postlaw_model)
 
-predicted <- data.frame(st_data$as_of_year, predict(prelaw_model, newdata=st_data))
-names(predicted) <- c('as_of_year', 'subprime')
+predicted <- data.frame(st_data$year, predict(prelaw_model, newdata=st_data))
+names(predicted) <- c('year', 'subprime')
 
-prelaw_model2 <- lm(formula=(subprime ~ as_of_year + total_population + sthpi + mh_income), data=prelaw)
+prelaw_model2 <- lm(formula=(subprime ~ year + population + sthpi + mh_income), data=prelaw)
 summary(prelaw_model2)
 
-predicted2 <- data.frame(st_data$as_of_year, predict(prelaw_model2, newdata=st_data))
-names(predicted2) <- c('as_of_year', 'subprime')
+predicted2 <- data.frame(st_data$year, predict(prelaw_model2, newdata=st_data))
+names(predicted2) <- c('year', 'subprime')
 
-predicted2_pre <- predicted2[predicted2$as_of_year <= 1999,]
-predicted2_pos <- predicted2[predicted2$as_of_year >= 1999,]
+predicted2_pre <- predicted2[predicted2$year <= 1999,]
+predicted2_pos <- predicted2[predicted2$year >= 1999,]
 
-differences <- postlaw[, c('as_of_year', 'subprime')]
-differences$subprime_predicted <- predicted2[predicted2$as_of_year > 2000,]$subprime
+differences <- postlaw[, c('year', 'subprime')]
+differences$subprime_predicted <- predicted2[predicted2$year > 2000,]$subprime
 differences$difference <- differences$subprime - differences$subprime_predicted
 
-ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
+ggplot(NULL, aes(x=year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
   geom_point(data=transition, color='gold') +
   geom_point(data=postlaw, color='darkblue') + 
   geom_smooth(data=prelaw, method=lm, se=FALSE, color='darkgray', fullrange=TRUE, linetype='dashed') + 
@@ -541,7 +414,7 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
   geom_line(data=predicted2_pos, color='blue', linetype='dashed') + 
   #geom_text(data=prelaw, x=1995, y=150000, label=lm_eqn(prelaw_model), parse=TRUE) + 
   geom_segment(data=differences, 
-               aes(x=as_of_year, xend=as_of_year, y=subprime, yend=subprime_predicted)) +
+               aes(x=year, xend=year, y=subprime, yend=subprime_predicted)) +
   theme_minimal() + ggtitle('South Carolina')
 ```
 
@@ -549,33 +422,33 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
 #Virginia
 st_data <- aux[aux$state == 'VA',]
 
-prelaw <- st_data[st_data$as_of_year <= 2006,]
-#transition <- st_data[(st_data$as_of_year > 1999) & (st_data$as_of_year <= 2000),]
-#postlaw <- st_data[st_data$as_of_year > 2000,]
+prelaw <- st_data[st_data$year <= 2006,]
+#transition <- st_data[(st_data$year > 1999) & (st_data$year <= 2000),]
+#postlaw <- st_data[st_data$year > 2000,]
 
-prelaw_model <- lm(formula=(subprime ~ as_of_year), data=prelaw)
+prelaw_model <- lm(formula=(subprime ~ year), data=prelaw)
 summary(prelaw_model)
 
-postlaw_model <- lm(formula=(subprime ~ as_of_year), data=postlaw)
+postlaw_model <- lm(formula=(subprime ~ year), data=postlaw)
 summary(postlaw_model)
 
-predicted <- data.frame(st_data$as_of_year, predict(prelaw_model, newdata=st_data))
-names(predicted) <- c('as_of_year', 'subprime')
+predicted <- data.frame(st_data$year, predict(prelaw_model, newdata=st_data))
+names(predicted) <- c('year', 'subprime')
 
-prelaw_model2 <- lm(formula=(subprime ~ as_of_year + total_population + sthpi + mh_income), data=prelaw)
+prelaw_model2 <- lm(formula=(subprime ~ year + population + sthpi + mh_income), data=prelaw)
 summary(prelaw_model2)
 
-predicted2 <- data.frame(st_data$as_of_year, predict(prelaw_model2, newdata=st_data))
-names(predicted2) <- c('as_of_year', 'subprime')
+predicted2 <- data.frame(st_data$year, predict(prelaw_model2, newdata=st_data))
+names(predicted2) <- c('year', 'subprime')
 
-predicted2_pre <- predicted2[predicted2$as_of_year <= 2006,]
-predicted2_pos <- predicted2[predicted2$as_of_year >= 2006,]
+predicted2_pre <- predicted2[predicted2$year <= 2006,]
+predicted2_pos <- predicted2[predicted2$year >= 2006,]
 
-differences <- postlaw[, c('as_of_year', 'subprime')]
-differences$subprime_predicted <- predicted2[predicted2$as_of_year >= 2006,]$subprime
+differences <- postlaw[, c('year', 'subprime')]
+differences$subprime_predicted <- predicted2[predicted2$year >= 2006,]$subprime
 differences$difference <- differences$subprime - differences$subprime_predicted
 
-ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
+ggplot(NULL, aes(x=year, y=subprime)) + geom_point(data=prelaw, color='darkgreen') +
   #geom_point(data=transition, color='gold') +
   #geom_point(data=postlaw, color='darkblue') + 
   geom_smooth(data=prelaw, method=lm, se=FALSE, color='darkgray', fullrange=TRUE, linetype='dashed') + 
@@ -583,7 +456,7 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
   #geom_line(data=predicted2_pos, color='blue', linetype='dashed') + 
   #geom_text(data=prelaw, x=1995, y=150000, label=lm_eqn(prelaw_model), parse=TRUE) + 
   #geom_segment(data=differences, 
-               #aes(x=as_of_year, xend=as_of_year, y=subprime, yend=subprime_predicted)) +
+               #aes(x=year, xend=year, y=subprime, yend=subprime_predicted)) +
   theme_minimal() + ggtitle('Virginia')
 ```
 
@@ -592,7 +465,7 @@ ggplot(NULL, aes(x=as_of_year, y=subprime)) + geom_point(data=prelaw, color='dar
 
 
 ```{r state_model}
-state_model <- lm(formula=(subprime_amount_originated ~ as.factor(as_of_year) + as.factor(state_code) + did + total_population + sthpi + mh_income), data=state_data)
+state_model <- lm(formula=(subprime_amount_originated ~ as.factor(year) + as.factor(state_code) + did + population + sthpi + mh_income), data=state_data)
 summary(state_model)
 ```
 
