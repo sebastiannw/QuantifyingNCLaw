@@ -1,0 +1,398 @@
+---
+title: "test"
+author: "Sebastián Soriano Pérez"
+date: "3/8/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(arm); library(pROC); library(e1071); library(caret); library(knitr)
+library(rms); library(ggplot2); library(lme4); library(rstan); library(brms)
+library(sjPlot); library(dplyr); library(kableExtra); library(formatR); library(ggfortify)
+library(quantreg); library(gridExtra); library(Hmisc); library(corrplot); library(GGally)
+library(psych); library(car); library(huxtable); library(stargazer); library(DataExplorer)
+library(GGally); library(MASS); library(data.table); library(tidyverse); library(lmerTest)
+library(ggpubr); library(reshape2); library(mice); library(naniar); library(cobalt)
+library(MatchIt); library(randomForest); library(MuMIn); require(scales); library(its.analysis)
+library(lfe); require(VGAM); require(forecast)
+require(readxl)
+require(latex2exp)
+require(coda)
+require(plyr)
+require(ggrepel)
+require(cowplot)
+require(mvtnorm)
+require(plotly)
+require(pushoverr)
+require(metR)
+require(extraDistr)
+require(showtext)
+require(BAS)
+require(plm)
+TeX <- latex2exp::TeX
+
+lm_eqn <- function(model){
+    m <- model;
+    eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
+         list(a = format(unname(coef(m)[1]), digits=2),
+              b = format(unname(coef(m)[2]), digits=2),
+             r2 = format(summary(m)$r.squared, digits=3)))
+    as.character(as.expression(eq));
+}
+```
+
+# Quantifying the Effects of the 1998 Predatory Lending Law in North Carolina
+
+## Abstract
+This report quantifies the impact of North Carolina's predatory lending law from 1999 in the state's subprime mortgage market. We used the Home Mortgage and Disclosure Act (HMDA) Loan Application Register (LAR) datasets in conjunction with the US Department of Housing and Urban Development (HUD)'s classification of subprime lenders and additional datasets from the Federal Reserve Economic Data (FRED) to measure any any changes that occured in North Carolina's subprime mortgage market before the law's implementation (from 1993 to 1998), and after the intervention (from 1999 to 2006). We executed an Interrupted Time Series Analysis and a Differences in Differences model to compare North Carolina's subprime mortgage before and after the law was implemented, and we compared it to other states with similar socioeconomic characteristics. Our analysis shows the 1999 predatory lending law was effective as there was a significant decrease in the number of subprime loans originated in the state after the law was implemented, most likely due to a reduction in the number of predatory loans issued in the state.
+
+
+
+```{r load_data, include=FALSE}
+state_data <- read.csv('../data/final/state_data.csv')
+#state_relative <- read.csv('../data/final/state_relative.csv')
+county_data <- read.csv('../data/final/county_data.csv')
+#county_relative <- read.csv('../data/final/county_relative.csv')
+
+county_data <- county_data[!duplicated(county_data[, c('year', 'state', 'county_code')]),]
+
+temp <- county_data[county_data$year < 2006, c('year', 'state', 'county_code', 'subprime_originated')]
+colnames(temp)[4] <- 'subprime_originated_lagged'
+temp$year <- temp$year + 3
+temp <- merge(county_data, temp, on=c('year', 'state', 'county_code'), all.x=TRUE)
+
+county_data$subprime_originated_lagged <- temp$subprime_originated_lagged
+
+county_data <- county_data[(county_data$year >= 1993) & (county_data$state %in% c('NC', 'AL', 'VA')),]
+county_data <- county_data[county_data$loans_originated != 0,]
+county_data$log_subprime_originated <- log(county_data$subprime_originated + 1)
+county_data$elapsed_time <- county_data$elapsed_time - 3
+
+#county_data$subprime_originated_logodds <- log((county_data$subprime_originated_percentage + 0.001) / (1 - county_data$subprime_originated_percentage + 0.001))
+```
+
+## Introduction
+The mortgage market saw an increase during the 1990s, especially in the subprime market. The subprime market is typically defined as those loans that are lended to high-risk borrowers with the following characteristics: low credit scores (below 660), at least two 30 day or at least one 60-day delinquencies in the past two years, at least one foreclosure in the past two years or at least one bankrupcy in the past five years (Quercia 2004). Loans with high loan to value rates (LTV), high payment to income rates, for borrowers with limited documentation of income, or unstable income also represent additional risk to lenders. To make up for the higher risks associated with this kind of borrowers, subprime loans usually have characteristics that are more expensive to borrowers in the long term despite typically having small monthly payments at first: higher interest rates, high prepayment penalties, higher fees, balloon payments, among others. The predatory market is a subset of the subprime market that is abusive to borrowers. Some sectors of the population are especially vulnerable to this type of practices.
+
+```{r figure_1, fig.align='center', out.width='80%', out.height='80%', echo=FALSE}
+figure_1 <- ggplot() + 
+  geom_line(data=state_data[state_data$state == 'NC',], aes(x=year, y=subprime_originated), 
+            color='darkblue') + 
+  geom_point(data=state_data[state_data$state == 'NC',], aes(x=year, y=subprime_originated), 
+             shape=4, color="darkblue", size=1.25) +
+  geom_segment(data=state_data[(state_data$state == 'NC') & (state_data$year %in% c(1990, 1999, 2001, 2004, 2006)),],
+               aes(x=year, xend=year, y=0, yend=subprime_originated), 
+               linetype='dashed', color='darkgray') +
+  geom_text(data=state_data[(state_data$state == 'NC') & (state_data$year %in% c(1990, 1999, 2001, 2004, 2006)),], 
+            aes(x=year, y=subprime_originated, label=round(subprime_originated, 2)), 
+            hjust=0.1, vjust=-0.9, size=3) +
+  ggtitle(TeX(
+    "Figure 1"
+    ), subtitle=TeX(
+    "Subprime loans originated in North Carolina (1990-2006)"
+    )) + 
+  ylab(TeX("Subprime loans originated")) +
+  scale_x_continuous(name=TeX("Year"), breaks=1990:2006) + 
+  theme_minimal() + 
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), 
+        axis.line=element_line(color='darkgray'))
+figure_1
+```
+
+Lending to previously underserved population including immigrants and minorities grew fast during a short period of time. From 1990 to 1999 the number of loans originated by subprime lenders grew exponentially in North Carolina (See Figure 1). In 1990 the HMDA data registers only 73 subprime loans originated by subprime lenders in the state, and this number kept growing until it reached 43,725 in 1999, an increase of 598% in one decade. The Home Ownership and Equity Protection Act of 1994 (HOEPA) was the first attempt at a national level to regulate the predatory lending market. In 1999 North Carolina became the first state to implement an anti-predatory lending law in order to protect borrowers from this practices. Other states have also passed strong anti-predatory lending legislation, including Georgia in 2002 (Georgia Fair Lending Act), and South Carolina in 2000 (Predatory Mortgage Lending Prevention Act). Other states have passed minimal predatory lending laws, such as Alabama in 2003 (Payday Lending Law), Minnesota in 2004 (Prohibition of "equity stripping"), and Virginia in 2020 (Virginia Fairness in Lending Act).
+
+## Data
+We used the HMDA LAR datasets from 1993 to 2006, to cover a 16 year period around 1999 when the predatory lending law went into effect in North Carolina. Each row in the HMDA LAR datasets contains the following information about a loan application: year, state, county, lender, loan type, loan purpose, loan amount, action taken (whether it was denied, originated, etc.), applicant race, applicant income, and more. As a first step, we classified each loan as subprime or non-subprime by merging the HMDA LAR data with the HUD lenders annual classification. The HUD catalogue on subprime lenders classifies a lender as "subprime" if more than half of the loans they issue were subprime [research their definition of a subprime loan...]. Additionally, we collected data from the Federal Reserve Economic Data (FRED) to append the state's house price index (HPI), and median household for the same time period. Finally, using annual census estimates published by the National Cancer Institute, we included the population at a county level in our dataset.
+
+For our dataset, we aggregated the individual loan applications data to a county level so its statistical analysis would be possible. The final dataset contains panel data with the following variables:
+
+  - `year` (numerical): Year when the loan application was created
+  - `elapsed_time` (numerical): Years elapsed since 1993
+  - `state`(categorical): State where the loan application was received
+  - `county_code`(numerical): County within the state where the loan application was received
+  - `subprime`(numerical): Number of subprime loan applications made in the county
+  - `subprime_originated`(numerical): Number of subprime loans originated in the county
+  - `subprime_amount`(numerical): Total loan amount for subprime loans originated in the county
+  - `prime` (numerical): Number of non-subprime loan applications made in the county
+  - `prime_originated` (numerical): Number of non-subprime loans originated in the county
+  - `prime_amount` (numerical): Total loan amount for non-subprime loans originated in the county
+  - `loans_originated` (numerical): Number of loans (subprime and non-subprime) originated in the county
+  - `population` (numerical): County population
+  - `mh_income` (numerical): Median household income (state-level)
+  - `sthpi` (numerical): House Price Index (state-level)
+  
+The potential response or target variables to measure any potential changes in the subprime mortgage market are `subprime`, `subprime_originated`, and `subprime_amount`. Additionally, one could create other response variables such as the proportion of all loans that are subprime (i.e.: $\mathrm{subprime} \div \left( \mathrm{subprime} + \mathrm{prime} \right)$). We decided to use the number of subprime loans originated each year at a county level `subprime_originated` as the response variable for our analysis as it is the most direct indicator of how the subprime mortgage market changes each year. We can then compare our results to a similar analysis on the non-subprime market `prime_originated`, to compare both sectors of the market.
+
+The rows that contained zero values for the variable `loans_originated` were removed from our analysis because they contained no information on the size of the subprime mortgage market for that county and year, as no loans (subprime or not) were originated then. The final dataset contains $4,186$ rows ($1,400$ for North Carolina, $938$ for Alabama, and $1848$ for Virginia). In order to perform an interrupted time series analysis using a normal OSL regression, we observed the distribution of the response variable `subprime_originated` and performed a logarithmic transformation on it (see Figure 2) to create a new response variable that is normally distributed `log_subprime_originated` ($\mathrm{log\_subprime\_originated} = \log \left( \mathrm{subprime\_originated} + 1 \right)$). A summary of the data variables for each state being analyzed can be found on Appendix 1.1.
+  
+```{r figure_2, fig.align='center', out.width='50%', out.height='50%', echo=FALSE}
+figure_2.1 <- ggplot() + 
+  geom_histogram(data=county_data, aes(x=subprime_originated), 
+                 color='black', fill='gold', alpha=0.4, bins=15) +
+  scale_x_continuous(breaks=round(seq(min(county_data$subprime_originated), max(county_data$subprime_originated), length.out=15))) +
+  ggtitle(TeX(
+    "Figure 2"
+    ), subtitle=TeX(
+    "Distribution of subprime loans originated in North Carolina (1993-2006)"
+    )) + 
+  ylab(TeX("Frequency")) + xlab("subprime_originated") +
+  theme_minimal() + 
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), 
+        axis.line.y=element_line(color='darkgray'))
+
+figure_2.2 <- ggplot() + 
+  geom_histogram(data=county_data, aes(x=log_subprime_originated), 
+                 color='black', fill='gold', alpha=0.4, bins=15) +
+  scale_x_continuous(breaks=round(seq(min(county_data$log_subprime_originated), 
+                                      max(county_data$log_subprime_originated), length.out=15), digits=2)) +
+  ggtitle(label='', subtitle="Distribution of the logarithmic transformation of subprime_originated") + 
+  ylab(TeX("Frequency")) + xlab("log_subprime_originated") +
+  theme_minimal() + 
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), 
+        axis.line.y=element_line(color='darkgray'))
+
+par(mfrow = c(1, 2)) 
+figure_2.1
+figure_2.2
+```
+\
+As part of an exploratory data analysis, we plotted all potential predictor variables versus the response variable `log_subprime_originated` to determine if they appear to have an effect on the response variable and therefore could be included in our analysis (See Figure 3). It appears that all numerical variables being considered have a positive impact on the response variable `log_subprime_originated`. We included these variables in our analysis.
+
+```{r figure_3, fig.align='center', out.width='33%', out.height='33%', echo=FALSE}
+plot_3.1 <- ggplot() + 
+  geom_point(data=county_data, aes(x=population, y=log_subprime_originated), 
+             color='deeppink', alpha=0.1) + 
+  geom_smooth(data=county_data, aes(x=population, y=log_subprime_originated), formula=(y ~ x),
+              method=lm, color='darkgray', linetype='dashed', size=0.2) + theme_minimal() +
+  ggtitle(label='Figure 3', subtitle="Exploratory data analysis") + 
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), 
+        axis.line=element_line(color='darkgray'))
+
+plot_3.2 <- ggplot() + 
+  geom_point(data=county_data, aes(x=sthpi, y=log_subprime_originated), 
+             color='deeppink', alpha=0.1) + 
+  geom_smooth(data=county_data, aes(x=sthpi, y=log_subprime_originated), formula=(y ~ x),
+              method=lm, color='darkgray', linetype='dashed', size=0.2) + theme_minimal() +
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), 
+        axis.line=element_line(color='darkgray'))
+
+plot_3.3 <- ggplot() + 
+  geom_point(data=county_data, aes(x=elapsed_time, y=log_subprime_originated), 
+             color='deeppink', alpha=0.1) + 
+  geom_smooth(data=county_data, aes(x=elapsed_time, y=log_subprime_originated), formula=(y ~ x),
+              method=lm, color='darkgray', linetype='dashed', size=0.2) + theme_minimal() +
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), 
+        axis.line=element_line(color='darkgray'))
+
+plot_3.1
+plot_3.2
+plot_3.3
+```
+
+## Interrupted Time Series Analysis
+
+To quantify the impact of the 1999 North Carolina predatory lending law on the amount of subprime loans being originated in the state, we used a time series model with fixed effects for our panel data, using only the data from North Carolina. For this purpose, we created a dummy variable `intervention` with a value of $0$ for all observations from $1993$ to $1998$, the period before the predatory lending law was passed, and a value of $1$ for the observations from $1999$ to $2006$, indicating when the law was in effect. For simplicity purposes, we assume the effects of the law can be observed starting on the year of its implementation, even though its policies were implemented in two stages in $1999$ and $2000$. To execute the interrupted time series analysis, we created an interaction variable `intervention_time` that indicate the number of years the intervention has been in effect ($\mathrm{intervention\_time} = \mathrm{intervention} \times \left( \mathrm{elapsed\_time} - 5 \right)$, where $5$ is the number of years elapsed since 1993 whem the law was implemented).
+
+We used a fixed effects model with fixed effects for counties to measure how the 1999 law affected the number of subprime loans originated in each county, assuming each of them has very different time invariant county-level effects or baseline levels. For our panel data, the addition of county-level fixed effects allows us to control for any constant effects within the same county and focus on changes for each county over time. This is reasonable to assume since counties vary a lot in terms of population size, race, median household income, etc. Larger counties should have larger fixed-effects, as their mortgage markets should be larger too. The final model has the following formula:
+
+$$
+\begin{aligned}
+\hat{\mathrm{log\_subprime\_originated}}_{i, t} &= \alpha_i + \beta_1 \mathrm{elapsed\_time}_{i, t} + \beta_2 \mathrm{intervention}_{i, t} + \beta_3 \mathrm{intervention\_time}_{i, t} \\
+&+ \beta_4 \mathrm{population}_{i, t} + \beta_5 \mathrm{sthpi}_{i, t} + \epsilon_{i, t}
+\end{aligned}
+$$
+\
+Where $i \in \{1, 3, 5, ..., 199\}$ corresponds to each one of the $100$ counties in North Carolina, $t \in \{1993, 1994, ..., 2006\}$ corresponds to each one of the yearly observations in the dataset, $\hat{\mathrm{log\_subprime\_originated}}_{i, t}$ is the response variable for county $i$ at time $t$, $\alpha_i$ is time invariant county-level effect, $\beta_1, ..., \beta_5$ are the coefficients of the predictors or explanatory variables, $\mathrm{elapsed\_time}_{i, t}, ..., \mathrm{sthpi}_{i, t}$ are the predictor variables observed for each county $i$ at time $t$, and $\epsilon_{i, t}$ is the error term for county $i$ at time $t$.
+
+
+```{r data_preprocess, include=FALSE}
+data_preprocess <- function(data, target, predictors, state, intervention_year=NULL){
+  # Add treatment dummies variables
+  data <- data
+  data$intervention <- 0
+  data$intervention_time <- 0
+  
+  # Filter data by state and predictors, always including year, state, county_code and elapsed_time
+  data <- data[, c('year', 'state', 'county_code', 'elapsed_time', 'intervention', 'intervention_time', predictors, target)]
+  data <- data[data$state == state,]
+  
+  # Center all predictors
+  #data[, c('elapsed_time', predictors)] <- t(t(data[, c('elapsed_time', predictors)]) - 
+  #                                             apply(data[, c('elapsed_time', predictors)], 2, mean))
+
+  # Calculate treatment dummies
+  if(!is.null(intervention_year)){
+    data[data$year >= intervention_year,]$intervention <- 1
+    data$intervention_time <- pmax(0, data$year - intervention_year + 1)
+  }
+  
+  return(data)
+}
+```
+
+```{r plot function, include=FALSE}
+plot_itsa <- function(model_data, target, predictions, counterfactuals, state, 
+                      intervention_year=NULL, transition_year=NULL, y_scale='identity'){
+  model_data$target <- model_data[, target]
+  
+  if((!is.null(transition_year)) & (!is.null(intervention_year))){
+    preintervention_data <- model_data[model_data$year < transition_year,]
+    intervention_data <- model_data[model_data$year >= intervention_year,]
+    transition_data <- model_data[(model_data$year >= transition_year) & (model_data$year < intervention_year),]
+    cutoff <- transition_year - 1
+  } else if((is.null(transition_year)) & (!is.null(intervention_year))){
+    preintervention_data <- model_data[model_data$year < intervention_year,]
+    intervention_data <- model_data[model_data$year >= intervention_year,]
+    transition_data <- model_data[model_data$year == 0,]
+    cutoff <- intervention_year - 1
+  } else if((is.null(transition_year)) & (is.null(intervention_year))){
+    preintervention_data <- model_data
+    intervention_data <- model_data[model_data$year == 0,]
+    transition_data <- model_data[model_data$year == 0,]
+    cutoff <- max(model_data$year)
+  } else{
+    print("There can't be a transitionition period without a post treatment period")
+    break
+  }
+  
+  
+  plot <- ggplot(NULL, aes(x=year, y=target)) + 
+    geom_point(data=preintervention_data, color='darkblue', alpha=0.1) +
+    geom_point(data=transition_data, color='orange', alpha=0.1) +
+    geom_point(data=intervention_data, color='darkgreen', alpha=0.1) + 
+    geom_line(data=predictions[predictions$year <= cutoff,], color='darkblue', linetype='dashed') + 
+    geom_line(data=predictions[predictions$year >= cutoff,], color='darkgreen', linetype='dashed') + 
+    geom_line(data=counterfactuals[counterfactuals$year >= cutoff,], color='darkblue', linetype='dotted') +
+    ylab(target) + xlab('year') +
+    scale_y_continuous(trans=y_scale) +
+    scale_x_continuous(breaks=min(model_data$year):max(model_data$year)) + 
+    theme_minimal() + ggtitle(state) + 
+    theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(), 
+        axis.line=element_line(color='darkgray'), axis.text.x=element_text(angle=90))
+
+  return(plot)
+}
+```
+
+
+```{r compare_predictions, include=FALSE}
+average_datasets <- function(data){
+  average_data <- counterfactual_data <- aggregate(data[, 4:ncol(data)], list(data$year, data$state), mean)
+  colnames(average_data)[1:2] <- colnames(counterfactual_data)[1:2] <- c('year', 'state')
+  
+  counterfactual_data$intervention <- 0
+  counterfactual_data$intervention_time <- 0
+  
+  return(list(average_data=average_data, counterfactual_data=counterfactual_data))
+}
+```
+
+```{r itsa_common, include=FALSE}
+target <- 'log_subprime_originated'
+predictors <- c('population', 'sthpi', 'subprime_originated_lagged')
+state <- 'NC'
+intervention_year <- 1999
+
+NC_data <- data_preprocess(county_data, target, predictors, state, intervention_year)
+#NC_data$population_sq <- NC_data$population^2
+#NC_data$population_cb <- NC_data$population^3
+#predictors <- c(predictors, 'population_sq', 'population_cb')
+
+average_list <- average_datasets(NC_data)
+average_data <- average_list$average_data
+counterfactual_data <- average_list$counterfactual_data
+```
+
+The final model coefficients $\beta_1, ..., \beta_4$ have the following values:
+
+```{r itsa_NC, warning=FALSE, message=FALSE, echo=FALSE}
+NC_model <- felm(formula=log_subprime_originated ~ elapsed_time + intervention + intervention_time + 
+                   population + sthpi | county_code | 0 | county_code, data=NC_data)
+NC_summary <- summary(NC_model)
+df_coefficients <- NC_summary$coefficients
+df_coefficients <- data.frame(Coefficient=sprintf("$\\beta_%s$", seq(1:5)), df_coefficients)
+rownames(df_coefficients) <- NULL
+colnames(df_coefficients) <- c('Coefficient', 'Estimate', 'Cluster s.e.', '$t$ value', '$\\mathrm{Pr}(T>|t|)$')
+kable(df_coefficients, 
+      caption="Model's Coefficients", row.names=NA, label="tables", format="latex", booktabs=TRUE, 
+      escape=FALSE, align='r') %>% kable_styling(latex_options = "HOLD_position")
+```
+\
+[I should interpret all this in terms of number of loans i.e.: undo the log transformation]
+
+All of the coefficients in the model are statistically significant. These results indicate that before the intervention was implemented, the response variable was increasing at a rate of $0.8909$ per year, while it dropped to $0.8909 - 0.7115 = 0.1794$ per year after 1999. Because of the intervention, there was a level drop of $0.3950$ in the response variable for the intercepts after 1999. Additionally, each unit increase in population (i.e. for each additional person living in a county) there is a small decrease in the response variable of $1.4 \times 10^{-6}$, and for every unit increase in the state's house price index, there's a decrease of $0.0141$ in the response variable. This implies that for larger counties and counties where the houses have higher values, the response variable decreases and thus the number of subprime loans originated is smaller.
+
+For the full list of the model's fixed effects see Appendix 1.4. The average county intercept $\bar{\alpha} = \left(\sum_{t \in \{1993, 1994, ..., 2006\}}\sum_{i \in \{1, 3, ..., 199\}} \alpha_i \right) \div \left( T \times N \right) = 4.2465$, where $T = 14$ and $N = 100$. This means that for the average county in North Carolina (where each county's weight is proportional only to the number of observations it has in the dataset), the response variable was $4.2465$ in $1993$, with a population and house price index of $0$. See Figure 4 for the model's predicted trends for the average county in North Carolina. The blue dashed line represents the trend pre-intervention and the green dashed line represents the trend post intervention. The blue dotted line is obtained using the model's predicitons for the counterfacutals (using the same data except for the `intervention` and `intervention_time` variables which are set to zero), which represent what would have happened had the 1999 law never been implemented. It is evident that the linear trends decreased significantly after the law was implemented.
+\
+
+
+```{r itsa_NC_plot, out.width='80%', out.height='80%', fig.align='center', warning=FALSE, message=FALSE, echo=FALSE}
+fe <- getfe(NC_model)
+intercept <- sum(fe$effect * fe$obs) / sum(fe$obs)
+coefficients <- c(intercept, NC_model$coefficients)
+x <- data.matrix(cbind(1, average_data[, c('elapsed_time', 'intervention', 'intervention_time', 'population', 'sthpi')]))
+c <- data.matrix(cbind(1, counterfactual_data[, c('elapsed_time', 'intervention', 'intervention_time', 'population', 'sthpi')]))
+predictions <- data.frame(year=average_data$year, target=x %*% coefficients)
+counterfactuals <- data.frame(year=average_data$year, target=c %*% coefficients)
+plot_itsa(NC_data, target, predictions, counterfactuals, state, intervention_year=2001, transition_year=1999) +
+  ggtitle(label='Figure 4', subtitle=TeX('Response variable estimates for average county & observed values'))
+```
+
+
+
+\pagebreak
+
+# Appendix 
+
+##1.1 State Selection
+For our difference in differences analysis we selected five states that were socioeconomically similar to North Carolina. Using the census yearly estimates from the National Cancer Institute, three different clustering techniques were applied to the 50 states’ population data from 1990 to 2009, to find those that are more similar to North Carolina. The techniques used were K-means clustering, agglomerative clustering, and TSNE for dimensionality reduction.
+
+The population dataset was simplified to contain the following variables:
+  - Year (from 1990 to 2009)
+  - State (all 50 states plus DC were considered)
+  - Race (simplified into 1 - white or 2 - other)
+  - Age (simplified into 1 - 0-19 years old, 2 - 20-34 years old, 3 - 35-49 years old, 4 - 50-64 years old, 5 - 65+ years old)
+  - Sex (1 - male or 2 - female)
+
+The dataset was transposed to create a vector for each of the 50 states plus DC, with the population for each year-race-age-sex group. After running the clustering algorithms on this data, the states that coincide across the three different models were analyzed and selected to our discretion. The final states are Alabama, Georgia, Minnesota, South Carolina, and Virginia. We selected those states that passed no anti-predatory lending laws from 1990 to 2006, so they could be used as a control group for North Carolina: Virginia and Alabama.
+
+##1.2 Dataset Summary
+*North Carolina*
+```{r data_summary_NC, echo= FALSE}
+print('NC_data')
+summary(NC_data)
+```
+\
+*Alabama*
+```{r data_summary_AL, echo= FALSE}
+print('AL_data')
+#summary(AL_data)
+```
+\
+*Virginia*
+```{r data_summary_VA, echo= FALSE}
+print('VA_data')
+#summary(VA_data)
+```
+\
+##1.3. Exploratory Data Analysis
+\
+
+
+##1.4 Model's fixed effects by county
+
+
+##1.5 Model assessment
+```{r model_assessment, warning=FALSE, message=FALSE}
+#r.squaredGLMM(NC_model)
+plot(y=NC_model$residuals, x=NC_data$year, xlab = "Year", ylab = "Residual")
+abline(0,0)
+ggAcf(NC_model$residuals)
+
+plot(y=NC_model$residuals, x=NC_model$fitted.values)
+abline(0,0)
+#plot(NC_model, which=1)
+#plot(NC_model, which=2)
+#durbinWatsonTest(NC_model)
+```

@@ -1,0 +1,239 @@
+---
+title: "test"
+author: "Sebastián Soriano Pérez"
+date: "3/8/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(arm); library(pROC); library(e1071); library(caret); library(knitr)
+library(rms); library(ggplot2); library(lme4); library(rstan); library(brms)
+library(sjPlot); library(dplyr); library(kableExtra); library(formatR); library(ggfortify)
+library(quantreg); library(gridExtra); library(Hmisc); library(corrplot); library(GGally)
+library(psych); library(car); library(huxtable); library(stargazer); library(DataExplorer)
+library(GGally); library(MASS); library(data.table); library(tidyverse); library(lmerTest)
+library(ggpubr); library(reshape2); library(mice); library(naniar); library(cobalt)
+library(MatchIt); library(randomForest); library(MuMIn); require(scales)
+
+lm_eqn <- function(model){
+    m <- model;
+    eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
+         list(a = format(unname(coef(m)[1]), digits=2),
+              b = format(unname(coef(m)[2]), digits=2),
+             r2 = format(summary(m)$r.squared, digits=3)))
+    as.character(as.expression(eq));
+}
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r load_data, include=FALSE}
+state_data <- read.csv('../data/final/state_data.csv')
+state_relative <- read.csv('../data/final/state_relative.csv')
+county_data <- read.csv('../data/final/county_data.csv')
+county_relative <- read.csv('../data/final/county_relative.csv')
+```
+
+```{r plot function, include=FALSE}
+plot_itsa <- function(state, target, model_data, predicted, counterfc, posin=NULL, trans=NULL){
+  if((!is.null(trans)) & (!is.null(posin))){
+    prein_data <- model_data[model_data$year < trans,]
+    posin_data <- model_data[model_data$year >= posin,]
+    trans_data <- model_data[(model_data$year >= trans) & (model_data$year < posin),]
+    cutoff <- trans - 1
+  } else if((is.null(trans)) & (!is.null(posin))){
+    prein_data <- model_data[model_data$year < posin,]
+    posin_data <- model_data[model_data$year >= posin,]
+    trans_data <- model_data[model_data$year == 0,]
+    cutoff <- posin - 1
+  } else if((is.null(trans)) & (is.null(posin))){
+    prein_data <- model_data
+    posin_data <- model_data[model_data$year == 0,]
+    trans_data <- model_data[model_data$year == 0,]
+    cutoff <- max(model_data$year)
+  } else{
+    print("There can't be a transition period without a post treatment period")
+    break
+  }
+  
+  differences <- merge(x=posin_data[, c('year', 'target')], y=counterfc, by='year', all.x=TRUE)
+  
+  plot <- ggplot(NULL, aes(x=year, y=target)) + 
+    geom_point(data=prein_data, color='darkblue') +
+    geom_point(data=trans_data, color='orange') +
+    geom_point(data=posin_data, color='darkgreen') + 
+    geom_line(data=predicted[model_data$year <= cutoff,], color='darkblue', linetype='dashed') + 
+    geom_line(data=predicted[model_data$year >= cutoff,], color='darkgreen', linetype='dashed') + 
+    geom_line(data=counterfc[model_data$year >= cutoff,], color='darkblue', linetype='dotted') +
+    geom_segment(data=differences, 
+                 aes(x=year, xend=year, y=target.x, yend=target.y), 
+                 linetype='solid', color='black', size=0.1) +
+    scale_x_continuous(breaks=min(model_data$year):max(model_data$year)) +
+    scale_y_continuous(labels=comma) +
+    ylab(target) + xlab('year') +
+    theme_minimal() + ggtitle(state) + 
+    theme(panel.grid.major=element_line(linetype='dotted', color='black', size=0.1), 
+          panel.grid.minor=element_blank(), axis.line=element_blank())
+  
+  return(plot)
+}
+```
+
+```{r itsa_function, include=FALSE}
+# Defining ITSA function
+itsa_model <- function(data, state, target, predictors, posin=NULL, trans=NULL){
+  model_data <- data[(data$state == state),]
+  
+  if((substr(target, 1, 4) == 'log(') & (substr(target, nchar(target), nchar(target)) == ')')){
+    model_data$target <- log(model_data[, substr(target, 5, nchar(target) - 1)] + 1)
+  } else{
+    model_data$target <- model_data[, target]
+  }
+  
+  model_data$posin <- 0
+  model_data$trans <- 0
+  model_data$posin_time <- 0
+  model_data$trans_time <- 0
+  
+  if((!is.null(trans)) & (!is.null(posin))){
+    model_data$posin_time <- pmax(0, model_data$year - posin + 1)
+    model_data$trans_time <- pmax(0, model_data$year - trans + 1)
+
+    model_data[model_data$year >= posin,]$posin <- 1
+    #model_data[(model_data$year >= trans) & (model_data$year < posin),]$trans <- 1
+    model_data[model_data$year >= trans,]$trans <- 1
+    formula <- as.formula(paste('target', paste(predictors, collapse=' + '), sep=' ~ '))
+  } else if((is.null(trans)) & (!is.null(posin))){
+    model_data$posin_time <- pmax(0, model_data$year - posin + 1)
+    
+    model_data[model_data$year >= posin,]$posin <- 1
+    formula <- as.formula(paste('target', paste(predictors, collapse=' + '), sep=' ~ '))
+  } else if((is.null(trans)) & (is.null(posin))){
+    formula <- as.formula(paste('target', paste(predictors, collapse=' + '), sep=' ~ '))
+  } else{
+    print("There can't be a transition period without a post treatment period")
+    break
+  }
+  
+  print(formula)
+  model <- lm(formula=formula, data=model_data)
+  
+  predicted <- data.frame(year=as.numeric(model_data$year), target=predict(model, newdata=model_data))
+  
+  cntfc_data <- model_data
+  cntfc_data$posin <- 0
+  cntfc_data$trans <- 0
+  cntfc_data$posin_time <- 0
+  cntfc_data$trans_time <- 0
+  
+  counterfc <- data.frame(year=as.numeric(cntfc_data$year), target=predict(model, newdata=cntfc_data))
+  
+  plot <- plot_itsa(state, target, model_data, predicted, counterfc, posin, trans)
+  
+  return(list('model'=model, 'plot'=plot, 'model_data'=model_data))
+}
+```
+
+```{r itsa_common}
+log_target <- 'log(subprime)'
+target <- 'subprime'
+predictors <- c('elapsed_time', 'population', 'sthpi', 'mh_income', 'posin_time', 'trans_time', 'posin', 'trans')
+simple_predictors <- c('elapsed_time', 'posin_time', 'posin')
+simple_predictors_b <- c('elapsed_time', 'posin_time', 'trans_time', 'posin', 'trans')
+```
+
+```{r itsa_NC, warning=FALSE, message=FALSE}
+state <- 'NC'
+trans <- NULL
+posin <- 1999
+
+itsa_NC <- itsa_model(data=county_data, state=state, target=log_target, predictors=predictors, 
+           posin=posin, trans=trans)
+summary(itsa_NC$model)
+itsa_NC$plot
+
+itsa_NC_simple <- itsa_model(data=county_data, state=state, target=log_target, predictors=simple_predictors, 
+           posin=posin, trans=trans)
+summary(itsa_NC_simple$model)
+itsa_NC_simple$plot
+```
+
+```{r itsa_AL, warning=FALSE, message=FALSE}
+state <- 'AL'
+
+itsa_AL <- itsa_model(data=state_data, state=state, target=target, predictors=predictors)
+summary(itsa_AL$model)
+itsa_AL$plot
+
+itsa_AL_simple <- itsa_model(data=state_data, state=state, target=target, predictors=simple_predictors)
+summary(itsa_AL_simple$model)
+itsa_AL_simple$plot
+```
+
+```{r itsa_GA, warning=FALSE, message=FALSE}
+state <- 'GA'
+trans <- 2002
+posin <- 2003
+
+itsa_GA <- itsa_model(data=state_data, state=state, target=target, predictors=predictors, 
+           posin=posin, trans=trans)
+summary(itsa_GA$model)
+itsa_GA$plot
+
+itsa_GA_simple <- itsa_model(data=state_data, state=state, target=target, predictors=simple_predictors, 
+           posin=posin, trans=trans)
+summary(itsa_GA_simple$model)
+itsa_GA_simple$plot
+```
+
+```{r itsa_MN, warning=FALSE, message=FALSE}
+state <- 'MN'
+trans <- 2004
+posin <- 2005
+
+itsa_MN <- itsa_model(data=state_data, state=state, target=target, predictors=predictors, 
+           posin=posin, trans=trans)
+summary(itsa_MN$model)
+itsa_MN$plot
+
+itsa_MN_simple <- itsa_model(data=state_data, state=state, target=target, predictors=simple_predictors, 
+           posin=posin, trans=trans)
+summary(itsa_MN_simple$model)
+itsa_MN_simple$plot
+```
+
+```{r itsa_SC, warning=FALSE, message=FALSE}
+state <- 'SC'
+trans <- 2000
+posin <- 2001
+
+itsa_SC <- itsa_model(data=state_data, state=state, target=target, predictors=predictors, 
+           posin=posin, trans=trans)
+summary(itsa_SC$model)
+itsa_SC$plot
+
+itsa_SC_simple <- itsa_model(data=state_data, state=state, target=target, predictors=simple_predictors, 
+           posin=posin, trans=trans)
+summary(itsa_SC_simple$model)
+itsa_SC_simple$plot
+```
+
+```{r itsa_VA, warning=FALSE, message=FALSE}
+state <- 'VA'
+
+itsa_VA <- itsa_model(data=state_data, state=state, target=target, predictors=predictors)
+summary(itsa_VA$model)
+itsa_VA$plot
+
+itsa_VA_simple <- itsa_model(data=state_data, state=state, target=target, predictors=simple_predictors)
+summary(itsa_VA_simple$model)
+itsa_VA_simple$plot
+```
+
+
+

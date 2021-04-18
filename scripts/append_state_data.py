@@ -17,7 +17,7 @@ state_data = pd.read_csv('../data/aggregated/state_data.csv',
                                 'race_white': 'int', 'race_msrpd': 'int',
                                 'subprime': 'int', 'subprime_originated': 'int',
                                 'subprime_amount': 'float', 'subprime_amount_originated': 'float',
-                                'total': 'int'}).iloc[:, 1:]
+                                'total': 'int'}).iloc[:, 1:26]
 
 state_relative = pd.read_csv('../data/aggregated/state_relative.csv',
                              dtype={'as_of_year': 'int', 'state_code': 'int',
@@ -32,7 +32,7 @@ state_relative = pd.read_csv('../data/aggregated/state_relative.csv',
                                     'race_white': 'float', 'race_msrpd': 'float',
                                     'subprime': 'float', 'subprime_originated': 'float',
                                     'subprime_amount': 'float', 'subprime_amount_originated': 'float',
-                                    'total': 'int'}).iloc[:, 1:]
+                                    'total': 'int'}).iloc[:, 1:26]
 
 county_data = pd.read_csv('../data/aggregated/county_data.csv',
                           dtype={'as_of_year': 'int', 'state_code': 'int', 'county_code': 'int',
@@ -47,7 +47,7 @@ county_data = pd.read_csv('../data/aggregated/county_data.csv',
                                  'race_white': 'int', 'race_msrpd': 'int',
                                  'subprime': 'int', 'subprime_originated': 'int',
                                  'subprime_amount': 'float', 'subprime_amount_originated': 'float',
-                                 'total': 'int'}).iloc[:, 1:]
+                                 'total': 'int'}).iloc[:, 1:27]
 
 county_relative = pd.read_csv('../data/aggregated/county_relative.csv',
                               dtype={'as_of_year': 'int', 'state_code': 'int', 'county_code': 'int',
@@ -62,7 +62,7 @@ county_relative = pd.read_csv('../data/aggregated/county_relative.csv',
                                      'race_white': 'float', 'race_msrpd': 'float',
                                      'subprime': 'float', 'subprime_originated': 'float',
                                      'subprime_amount': 'float', 'subprime_amount_originated': 'float',
-                                     'total': 'int'}).iloc[:, 1:]
+                                     'total': 'int'}).iloc[:, 1:27]
 
 # Population data management
 population_data = pd.read_csv('../data/population/state_pop2.csv',
@@ -72,13 +72,14 @@ population_data = pd.read_csv('../data/population/state_pop2.csv',
                                      'age': 'int', 'population': 'int',
                                      'total_population': 'int', 'percent_population': 'float64'}).iloc[:, 1:]
 
+
 # Filter data by years
 population_data = population_data[(population_data.year >= 1990) & (population_data.year <= 2006)]
 population_data = population_data[population_data.state.isin(['AL', 'GA', 'MN', 'NC', 'SC', 'VA'])]
 
 # Extract aggregate stats
 state_population = population_data.groupby(['year', 'state'])['population'].sum().reset_index()
-#county_population = population_data.groupby(['year', 'state', 'county_fips'])['population'].sum().reset_index()
+county_population = population_data.groupby(['year', 'state', 'county_fips'])['population'].sum().reset_index()
 
 # HPI data management
 hpi_AL = pd.read_csv('../data/hpi/ALSTHPI.csv', names=['date', 'sthpi'], header=0)
@@ -219,7 +220,7 @@ county_data.loc[county_data.state_code == 45, 'state'] = 'SC'
 county_data.loc[county_data.state_code == 51, 'state'] = 'VA'
 
 # Merge with population data
-county_data = pd.merge(county_data, state_population, how='inner', on=['year', 'state'])
+county_data = pd.merge(county_data, county_population, how='inner', left_on=['year', 'state', 'county_code'], right_on=['year', 'state', 'county_fips'])
 
 # Merge with hpi data
 county_data = pd.merge(county_data, hpi, how='inner', on=['year', 'state'])
@@ -245,7 +246,7 @@ county_relative.loc[county_relative.state_code == 45, 'state'] = 'SC'
 county_relative.loc[county_relative.state_code == 51, 'state'] = 'VA'
 
 # Merge with population data
-county_relative = pd.merge(county_relative, state_population, how='inner', on=['year', 'state'])
+county_relative = pd.merge(county_relative, county_population, how='inner', left_on=['year', 'state', 'county_code'], right_on=['year', 'state', 'county_fips'])
 
 # Merge with hpi data
 county_relative = pd.merge(county_relative, hpi, how='inner', on=['year', 'state'])
